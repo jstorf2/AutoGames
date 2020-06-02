@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from ppadb.client import Client
 from PIL import Image
 import numpy as np
@@ -93,8 +95,8 @@ def findMiddleOfHoops(rgbImage):
     numOfPixelsInFirstHoop = 0  #Number of red pixels found in first hoop
     numOfPixelsInSecondHoop = 0  #Number of red pixels found in second hoop
     numOfHoopsCompleted = 0  #Number of hoops with all pixels found
-    foundHoop = False;  #Tells the program a hoop has been found
-    rowHasRim = False;  #Tells the program the row has rim pixels
+    foundHoop = False  #Tells the program a hoop has been found
+    rowHasRim = False  #Tells the program the row has rim pixels
     
     i = 0
     while i < len(rgbImage):  #Loop through length of screen
@@ -105,7 +107,7 @@ def findMiddleOfHoops(rgbImage):
         
         if(numOfHoopsCompleted == 2):
             #Exit loop after two hoops are found
-            break;
+            break
         
         rowHasRim = False
         for j in range(len(rgbImage[0])):  #Loop through width of screen

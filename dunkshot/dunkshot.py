@@ -38,8 +38,10 @@ def checkForCorrectColor(currentPixel):
     return False
     
     
-def findFirstPixelOccurence(rgbImage):
+def findFirstPixelOccurence():
     #This function finds the location of the first occurence of a pixel with a hoop color.
+
+    rgbImage = getPixelInformation()
 
     firstPixelLocation = [0,0]  #This is the pixel location of the first occurence of a hoop color.  These are given in x,y coordinates
     foundPixel = False
@@ -58,7 +60,7 @@ def findFirstPixelOccurence(rgbImage):
                 foundPixel = True
                 break
                 
-        i += 8 #This is the number of rows to skip when reading pixels
+        i += 80 #This is the number of rows to skip when reading pixels
     
     return firstPixelLocation
     
@@ -68,27 +70,31 @@ def checkForMovingHoop():
     # and compares the new hoop location with the old.  True means the hoop is moving.
     
     #Do first check
-    rgbImage = getPixelInformation()
-    firstCheckLocation = findFirstPixelOccurence(rgbImage)  #This is the pixel location on the first check.  These are given in x,y coordinates
+    firstCheckLocation = findFirstPixelOccurence()  #This is the pixel location on the first check.  These are given in x,y coordinates
     
-    time.sleep(.3)
+    time.sleep(.4)
     
     #Do second check
-    rgbImage = getPixelInformation()
-    secondCheckLocation = findFirstPixelOccurence(rgbImage)  #This is the pixel location on the second check.  These are given in x,y coordinates
+    secondCheckLocation = findFirstPixelOccurence()  #This is the pixel location on the second check.  These are given in x,y coordinates
     
-    #Check if hoops are in the same location
-    if(firstCheckLocation != secondCheckLocation):
-        #Hoop has moved
-        return True
+    #Check if hoops are moving and if so what direction
+    if(firstCheckLocation[1] == secondCheckLocation[1] and firstCheckLocation[0] != secondCheckLocation[0]):
+        #Moving horizontally
+        return "horizontal"
+    elif(firstCheckLocation != secondCheckLocation):
+        #Moving vertically
+        return "vertical"
     
     #Hoop hasn't moved
-    return False
+    return "no movement"
     
     
-def findMiddleOfHoops(rgbImage):
+def findMiddleOfHoops():
     #This function works by finding pixels on the rims of the hoop and averaging the coordinates to 
     #find the middle of the hoop.
+
+    #Get pixel information on screen
+    rgbImage = getPixelInformation() #This image is in y,x coordinates not x,y
     
     aimHoopLocation = [0,0]  #Both of these are given in x,y coordinates
     ballHoopLocation = [0,0]
@@ -133,16 +139,20 @@ def findMiddleOfHoops(rgbImage):
                     ballHoopLocation[0] += j
                     ballHoopLocation[1] += i
                     numOfPixelsInSecondHoop += 1
-        i += 3 #This is the number of rows to skip when reading pixels
+        #i += 18 #This is the number of rows to skip when reading pixels
+        i += 60
     
     #This is where the coodinates are averaged with the number of pixels found
     aimHoopLocation[0] = int(aimHoopLocation[0] / numOfPixelsInFirstHoop)
     aimHoopLocation[1] = int(aimHoopLocation[1] / numOfPixelsInFirstHoop) + 82
     ballHoopLocation[0] = int(ballHoopLocation[0] / numOfPixelsInSecondHoop)
     ballHoopLocation[1] = int(ballHoopLocation[1] / numOfPixelsInSecondHoop) + 82
+
+    print("Aim hoop location: x: " + str(aimHoopLocation[0]) + " y: " + str(aimHoopLocation[1]))
+    print("Ball hoop location: x: " + str(ballHoopLocation[0]) + " y: " + str(ballHoopLocation[1]))
     
     return aimHoopLocation, ballHoopLocation
-    
+
 	
 def calcPullback(aimHoopLocation, ballHoopLocation):
     #This function calculates how far to pull the ball and what direction.  It works by calculating what velocity the ball
@@ -163,10 +173,10 @@ def calcPullback(aimHoopLocation, ballHoopLocation):
     yVel = -math.sqrt(-2 * accel * delY)
     
     #Time in air to said point
-    time = -yVel/accel
+    airTime = -yVel/accel
     
     #Velocity needed to reach point in given time
-    xVel = delX / time
+    xVel = delX / airTime
     
     #Calculate throwing angle with respect to the vertical
     throwAngle = math.atan(xVel/yVel)
@@ -178,7 +188,7 @@ def calcPullback(aimHoopLocation, ballHoopLocation):
     #yPullBack = yPullBack
     xPullBack = math.tan(throwAngle) * yPullBack * .8
     
-    return xPullBack, yPullBack
+    return xPullBack, yPullBack, airTime
     
     
 def calcPullbackBigThrow(aimHoopLocation, ballHoopLocation):
@@ -195,10 +205,10 @@ def calcPullbackBigThrow(aimHoopLocation, ballHoopLocation):
     yVelFinal = math.sqrt(yVel ** 2 + 2 * accel * delY)
     
     #Calculate time in air using y final velocity
-    time = (yVelFinal - yVel) / accel
+    airTime = (yVelFinal - yVel) / accel
     
     #Calculate initial x velocity with time in air
-    xVel = delX / time
+    xVel = delX / airTime
     
     #Calculate throwing angle with respect to the vertical
     throwAngle = math.atan(xVel/yVel)
@@ -209,39 +219,91 @@ def calcPullbackBigThrow(aimHoopLocation, ballHoopLocation):
     #yPullBack = -676
     xPullBack = math.tan(throwAngle) * yPullBack
     
-    return xPullBack, yPullBack
+    return xPullBack, yPullBack, airTime
     
+
+def calcPullbackTimedThrow():
+    #This function uses the normal throw method but times the throw so that it can hit a moving horizontally hoop.  It 
+    # calculates the time by getting the aim hoop location and then continually doing that until the position is back 
+    # to the original.
+
+    threshold = 50 #Number of pixels used for distance from original to consider if the hoop is in the same locaion
+
+    #Get hoop locations and time of screenshot
+    startTime = time.time()  #Time of first screenshot taken
+    startAimHoopLocation = findFirstPixelOccurence()  #First pixel of aim hoop given in x,y coordinates
+    aimHoopLocation, ballHoopLocation = findMiddleOfHoops()  #Starting hoop locations given in x,y coordinates
+    
+    #Calculate distance to pull back the ball to throw it into the hoop and get the air time of ball
+    xPullBack, yPullBack, airTime = calcPullbackBigThrow(aimHoopLocation, ballHoopLocation)
+
+    #Wait a bit before checking hoop location
+    time.sleep(.4)
+
+    #Keep checking hoop locations until the hoop has made a full rotation.  This is when the hoop is heading the same 
+    # direction it started
+    numOfPasses = 0
+    while(numOfPasses < 2):
+        currentAimHoopLocation = findFirstPixelOccurence()  #First pixel of aim hoop given in x,y coordinates
+
+        if(math.fabs(currentAimHoopLocation[0] - startAimHoopLocation[0]) > threshold):
+            #Current hoop location is near the same spot as the orignal hoop location
+            numOfPasses += 1
+
+    #Get time it took to return to the original position
+    returnTime = time.time()
+    timeToReturnPosition = returnTime - startTime
+
+    #Calculate the amount of time it takes from the moment of sending the command to the moment it reaches its destination
+    throwTime = airTime + .5 + swipeTime + (totalCommandSendTime / numOfRuns)
+
+    #Calculate the time to wait before throwing the ball
+    waitTime = timeToReturnPosition - throwTime
+
+    return xPullBack, yPullBack, waitTime
+
 	
 def makeShot():
     #This function puts all parts of the program together.  It figures out where the hoops are located and then
     # determines how and where to throw the ball.
     
-    isMoving = checkForMovingHoop()
-    print("Moving: " + str(isMoving))
-    
-    #Get pixel information on screen
-    rgbImage = getPixelInformation() #This image is in y,x coordinates not x,y
-	
-    #Find Hoop Locations
-    aimHoopLocation, ballHoopLocation = findMiddleOfHoops(rgbImage) #These locations are in x,y coordinates now
-    print("Aim hoop location: x: " + str(aimHoopLocation[0]) + " y: " + str(aimHoopLocation[1]))
-    print("Ball hoop location: x: " + str(ballHoopLocation[0]) + " y: " + str(ballHoopLocation[1]))
+    movementType = checkForMovingHoop()
+    print("Moving: " + movementType)
     
     #Calculate the distance in pixels to pull the ball to throw it into the hoop
-    if(isMoving):
-        #Throw ball really high if moving
-        xPullBack, yPullBack = calcPullbackBigThrow(aimHoopLocation, ballHoopLocation)
+    if(movementType == "vertical"):
+        #Throw ball really high if moving vertically
+        aimHoopLocation, ballHoopLocation = findMiddleOfHoops()  #Hoop locations given in x,y coordinates
+        xPullBack, yPullBack, waitTime = calcPullbackBigThrow(aimHoopLocation, ballHoopLocation)
+        waitTime = 0
+    elif(movementType == "horizontal"):
+        #Time normal throw if moving horizontally
+        xPullBack, yPullBack, waitTime = calcPullbackTimedThrow()  #Hoop locations given in x,y coordinates
     else:
         #Throw ball normally if not moving
-        xPullBack, yPullBack = calcPullback(aimHoopLocation, ballHoopLocation)
+        aimHoopLocation, ballHoopLocation = findMiddleOfHoops()
+        xPullBack, yPullBack, waitTime = calcPullback(aimHoopLocation, ballHoopLocation)
+        waitTime = 0
     print("xPullBack: " + str(xPullBack))
     print("yPullBack: " + str(yPullBack))
     
+    #Wait before thowing if needed
+    time.sleep(waitTime)
+
     #Issue swipe command to the phone with given pull back distances
     #device.shell("input touchscreen swipe x1 y1 x2 y2 dur")
-    command = "input touchscreen swipe 700 800 " + str(700 - xPullBack) + " " + str(800 - yPullBack) + " 500"
+    command = "input touchscreen swipe 700 800 " + str(700 - xPullBack) + " " + str(800 - yPullBack) + " " + str(int(swipeTime * 1000))
+    print(command)
+    startTime = time.time()  #Start time of command
     device.shell(command)
+    finishTime = time.time()  #Time after the command was recieved and the screen was swiped
+    global totalCommandSendTime
+    totalCommandSendTime += (finishTime - startTime - .5)
 	
+
+numOfRuns = 0
+totalCommandSendTime = 0  #This is the total time it has taken to send commands.
+swipeTime = .5  #Time it takes for the phone to swipe the screen in seconds
 
 abd = Client(host="127.0.0.1", port=5037)
 devices = abd.devices()
@@ -250,12 +312,10 @@ if (len(devices) == 0):
     print("no devices")
 else:
     device = devices[0] #Assume first device is the device needed
-	
-    #command = "input touchscreen swipe 700 800 700 " + str(800 + 331) + " 1500"
-    #print(command)
-    #device.shell(command)
-    for i in range(20):
+    
+    for i in range(100):
+        numOfRuns += 1
         print("")
-        print("Shot " + str(i + 1))
+        print("Shot " + str(numOfRuns))
         makeShot()
         time.sleep(4)
